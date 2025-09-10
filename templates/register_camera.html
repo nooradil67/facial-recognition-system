@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Face Registration</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 40px 20px;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        h1 {
+            font-size: 2.2em;
+            margin-bottom: 10px;
+        }
+        
+        .progress-container {
+            padding: 20px;
+            background: #f8f9fa;
+            text-align: center;
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background: #e0e0e0;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-top: 10px;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(45deg, #4CAF50, #45a049);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+        
+        .camera-container {
+            padding: 30px;
+            text-align: center;
+            background: #f8f9fa;
+        }
+        
+        .video-feed {
+            border-radius: 15px;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+            max-width: 100%;
+            height: auto;
+        }
+        
+        .instructions {
+            padding: 25px;
+            background: white;
+            border-top: 1px solid #eee;
+        }
+        
+        .instruction-list {
+            list-style: none;
+            margin: 15px 0;
+        }
+        
+        .instruction-list li {
+            padding: 10px 0;
+            color: #666;
+            display: flex;
+            align-items: center;
+        }
+        
+        .instruction-list li::before {
+            content: "•";
+            color: #667eea;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+        
+        .status-message {
+            padding: 15px;
+            margin: 10px;
+            border-radius: 10px;
+            text-align: center;
+            font-weight: 500;
+            background: #e3f2fd;
+            color: #1976d2;
+        }
+        
+        .back-link {
+            display: inline-block;
+            margin: 20px;
+            padding: 12px 25px;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            text-decoration: none;
+            border-radius: 25px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+        
+        .back-link:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(118, 75, 162, 0.3);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Register Face - {{ name }}</h1>
+            <p class="subtitle">Please follow the instructions below</p>
+        </div>
+        
+        <div class="progress-container">
+            <h3>Progress: <span id="progress-count">0</span>/10 samples</h3>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progress-fill"></div>
+            </div>
+        </div>
+        
+        <div class="camera-container">
+            <img src="{{ url_for('video_feed_register') }}" class="video-feed" width="640" height="480">
+        </div>
+        
+        <div class="status-message" id="status-message">
+            Please position your face in the camera and follow the on-screen instructions
+        </div>
+        
+        <div class="instructions">
+            <h3>📋 Registration Instructions:</h3>
+            <ul class="instruction-list">
+                <li>Look straight at the camera</li>
+                <li>Keep a neutral expression</li>
+                <li>Ensure good lighting</li>
+                <li>Stay centered in the frame</li>
+                <li>Hold still while samples are captured</li>
+            </ul>
+        </div>
+        
+        <div style="text-align: center;">
+            <a href="/" class="back-link">← Back to Home</a>
+        </div>
+    </div>
+
+<script>
+    let checkInterval;
+    
+    function startStatusCheck() {
+        checkInterval = setInterval(async () => {
+            try {
+                const response = await fetch('/registration_status');
+                const data = await response.json();
+                
+                // Update progress
+                document.getElementById('progress-count').textContent = data.count;
+                document.getElementById('progress-fill').style.width = (data.count * 10) + '%';
+                
+                if (data.status === 'complete') {
+                    clearInterval(checkInterval);
+                    // Redirect to success page with name and count parameters
+                    window.location.href = `/registration_success?name=${encodeURIComponent(data.name || '')}&count=${data.count}`;
+                }
+            } catch (error) {
+                console.error('Status check failed:', error);
+            }
+        }, 1000);
+    }
+    
+    // Start checking status when page loads
+    window.addEventListener('load', startStatusCheck);
+    
+    // Clean up interval if user leaves page
+    window.addEventListener('beforeunload', () => {
+        if (checkInterval) {
+            clearInterval(checkInterval);
+        }
+    });
+</script>
+</body>
+</html>
