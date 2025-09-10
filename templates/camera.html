@@ -118,11 +118,13 @@
         </div>
         
         <div class="camera-container">
-            <img src="{{ url_for('video_feed_attendance') }}" class="video-feed" width="640" height="480">
+            <!-- Camera feed will be displayed here by JavaScript -->
+            <video id="video" width="640" height="480" autoplay style="border-radius: 15px; box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);"></video>
+            <canvas id="canvas" width="640" height="480" style="display:none;"></canvas>
         </div>
         
         <div class="status" id="status-message">
-            Please position your face in the camera frame...
+            Please allow camera access to begin...
         </div>
         
         <div class="instructions">
@@ -142,35 +144,99 @@
     </div>
 
 <script>
-    let checkInterval;
-    
-    function startStatusCheck() {
-        checkInterval = setInterval(async () => {
-            try {
-                const response = await fetch('/attendance_status');
-                const data = await response.json();
-                
-                if (data.status === 'marked') {
-                    clearInterval(checkInterval);
-                    document.getElementById('status-message').textContent = 'Attendance marked successfully! Redirecting...';
-                    // Redirect to success page with name and timestamp parameters
-                    window.location.href = `/attendance_success?name=${encodeURIComponent(data.name || '')}&timestamp=${encodeURIComponent(data.timestamp || '')}`;
-                }
-            } catch (error) {
-                console.error('Status check failed:', error);
-            }
-        }, 2000);
+const video = document.getElementById('video');
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const statusMessage = document.getElementById('status-message');
+
+let checkInterval;
+let frameInterval;
+
+// Access camera
+async function startCamera() {
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ 
+            video: { 
+                width: 640, 
+                height: 480,
+                facingMode: 'user' 
+            } 
+        });
+        video.srcObject = stream;
+        statusMessage.textContent = 'Camera active. Processing face...';
+        
+        // Start sending frames to server
+        frameInterval = setInterval(captureAndSendFrame, 1000);
+        
+    } catch (err) {
+        console.error("Camera error:", err);
+        statusMessage.textContent = 'Camera access denied! Please allow camera permissions.';
+        statusMessage.style.background = '#ffebee';
+        statusMessage.style.color = '#c62828';
     }
+}
+
+// Capture frame and send to server
+function captureAndSendFrame() {
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const imageData = canvas.toDataURL('image/jpeg');
     
-    // Start checking status when page loads
-    window.addEventListener('load', startStatusCheck);
-    
-    // Clean up interval if user leaves page
-    window.addEventListener('beforeunload', () => {
-        if (checkInterval) {
-            clearInterval(checkInterval);
+    // Send to Flask backend
+    fetch('/process_frame', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+            image: imageData,
+            mode: 'attendance'
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        console.log('Server response:', data);
+        if (data.success) {
+            statusMessage.textContent = `Faces detected: ${data.faces_detected}. ${data.message}`;
         }
+    })
+    .catch(error => {
+        console.error('Error:', error);
     });
+}
+
+// Attendance status check
+function startStatusCheck() {
+    checkInterval = setInterval(async () => {
+        try {
+            const response = await fetch('/attendance_status');
+            const data = await response.json();
+            
+            if (data.status === 'marked') {
+                clearInterval(checkInterval);
+                clearInterval(frameInterval);
+                statusMessage.textContent = 'Attendance marked successfully! Redirecting...';
+                window.location.href = `/attendance_success?name=${encodeURIComponent(data.name || '')}&timestamp=${encodeURIComponent(data.timestamp || '')}`;
+            }
+        } catch (error) {
+            console.error('Status check failed:', error);
+        }
+    }, 2000);
+}
+
+// Start everything when page loads
+window.addEventListener('load', () => {
+    startCamera();
+    startStatusCheck();
+});
+
+// Clean up when leaving page
+window.addEventListener('beforeunload', () => {
+    if (checkInterval) clearInterval(checkInterval);
+    if (frameInterval) clearInterval(frameInterval);
+    if (video.srcObject) {
+        video.srcObject.getTracks().forEach(track => track.stop());
+    }
+});
 </script>
 </body>
 </html>
