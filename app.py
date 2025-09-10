@@ -365,6 +365,44 @@ def cleanup():
     """Clean up camera resources"""
     release_camera()
     return redirect(url_for('index'))
+import base64
+import io
+from PIL import Image
+
+@app.route('/process_frame', methods=['POST'])
+def process_frame():
+    try:
+        data = request.json
+        image_data = data['image'].split(',')[1]  # Remove data:image/jpeg;base64,
+        mode = data.get('mode', 'attendance')
+        
+        # Convert base64 to image
+        image_bytes = base64.b64decode(image_data)
+        image = Image.open(io.BytesIO(image_bytes))
+        
+        # Convert to OpenCV format
+        frame = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
+        
+        # Your existing face detection code here
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        faces = face_cascade.detectMultiScale(gray, 1.3, 5)
+        
+        # Process based on mode
+        if mode == 'register':
+            # Registration logic
+            pass
+        else:
+            # Attendance logic
+            pass
+            
+        return jsonify({
+            'success': True, 
+            'faces_detected': len(faces),
+            'message': 'Frame processed successfully'
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
 
 if __name__ == '__main__':
     # Create attendance file if it doesn't exist
